@@ -20,6 +20,31 @@ def load_movie_data():
         st.error("movie_dict.pkl not found! Please ensure the file is in your repository.")
         return None
 
+def download_from_google_drive(file_id, destination):
+    """Download file from Google Drive with virus scan handling"""
+    session = requests.Session()
+    
+    # Try direct download first
+    url = f"https://drive.google.com/uc?id={file_id}&export=download"
+    response = session.get(url, stream=True)
+    
+    # Check if we need to handle virus scan warning
+    if "virus scan warning" in response.text.lower():
+        # Find the actual download link
+        for line in response.text.split('\n'):
+            if 'confirm=' in line and 'download' in line:
+                import re
+                confirm_code = re.findall(r'confirm=([^&]+)', line)[0]
+                url = f"https://drive.google.com/uc?export=download&confirm={confirm_code}&id={file_id}"
+                response = session.get(url, stream=True)
+                break
+    
+    # Save the file
+    with open(destination, 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+
 @st.cache_data
 def load_similarity_matrix():
     """Load similarity matrix from external source or local file"""
@@ -29,14 +54,13 @@ def load_similarity_matrix():
     if not os.path.exists(similarity_file):
         st.info("Downloading similarity matrix... This may take a moment.")
         
-        # Replace this URL with your actual file URL
-        # Options: Google Drive, GitHub Releases, Dropbox, etc.
-        file_url = "https://drive.google.com/file/d/1HRQSgoHEw_LS_a_LvF_4y7cogbErZ2CJ/view?usp=sharing"
+        # Google Drive file ID
+        file_id = "1HRQSgoHEw_LS_a_LvF_4y7cogbErZ2CJ"
         
         try:
             # Download with progress bar
             with st.spinner('Downloading similarity matrix...'):
-                urlretrieve(file_url, similarity_file)
+                download_from_google_drive(file_id, similarity_file)
             st.success("Download complete!")
         except Exception as e:
             st.error(f"Failed to download similarity matrix: {e}")
