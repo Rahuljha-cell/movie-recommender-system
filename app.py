@@ -3,85 +3,13 @@ import pandas as pd
 import streamlit as st
 import requests
 import time
-import os
-from urllib.request import urlretrieve
 
-# Cache directory for downloaded files
-CACHE_DIR = "cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
+# Load movie data and convert dict to DataFrame
+movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
+movies = pd.DataFrame(movies_dict)
 
-@st.cache_data
-def load_movie_data():
-    """Load movie dictionary from pickle file"""
-    try:
-        movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
-        return pd.DataFrame(movies_dict)
-    except FileNotFoundError:
-        st.error("movie_dict.pkl not found! Please ensure the file is in your repository.")
-        return None
-
-def download_from_google_drive(file_id, destination):
-    """Download file from Google Drive with virus scan handling"""
-    session = requests.Session()
-    
-    # Try direct download first
-    url = f"https://drive.google.com/uc?id={file_id}&export=download"
-    response = session.get(url, stream=True)
-    
-    # Check if we need to handle virus scan warning
-    if "virus scan warning" in response.text.lower():
-        # Find the actual download link
-        for line in response.text.split('\n'):
-            if 'confirm=' in line and 'download' in line:
-                import re
-                confirm_code = re.findall(r'confirm=([^&]+)', line)[0]
-                url = f"https://drive.google.com/uc?export=download&confirm={confirm_code}&id={file_id}"
-                response = session.get(url, stream=True)
-                break
-    
-    # Save the file
-    with open(destination, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            if chunk:
-                f.write(chunk)
-
-@st.cache_data
-def load_similarity_matrix():
-    """Load similarity matrix from external source or local file"""
-    similarity_file = os.path.join(CACHE_DIR, 'similarity.pkl')
-    
-    # If file doesn't exist locally, download from external source
-    if not os.path.exists(similarity_file):
-        st.info("Downloading similarity matrix... This may take a moment.")
-        
-        # Google Drive file ID
-        file_id = "1HRQSgoHEw_LS_a_LvF_4y7cogbErZ2CJ"
-        
-        try:
-            # Download with progress bar
-            with st.spinner('Downloading similarity matrix...'):
-                download_from_google_drive(file_id, similarity_file)
-            st.success("Download complete!")
-        except Exception as e:
-            st.error(f"Failed to download similarity matrix: {e}")
-            return None
-    
-    # Load the similarity matrix
-    try:
-        with open(similarity_file, 'rb') as f:
-            return pickle.load(f)
-    except Exception as e:
-        st.error(f"Failed to load similarity matrix: {e}")
-        return None
-
-# Load data
-movies = load_movie_data()
-if movies is None:
-    st.stop()
-
-similarity = load_similarity_matrix()
-if similarity is None:
-    st.stop()
+# Load similarity matrix
+similarity = pickle.load(open('similarity.pkl', 'rb'))
 
 # Create cleaned title column for safe matching
 movies['title_clean'] = movies['title'].str.strip().str.lower()
