@@ -3,13 +3,61 @@ import pandas as pd
 import streamlit as st
 import requests
 import time
+import os
+from urllib.request import urlretrieve
 
-# Load movie data and convert dict to DataFrame
-movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
-movies = pd.DataFrame(movies_dict)
+# Cache directory for downloaded files
+CACHE_DIR = "cache"
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-# Load similarity matrix
-similarity = pickle.load(open('similarity.pkl', 'rb'))
+@st.cache_data
+def load_movie_data():
+    """Load movie dictionary from pickle file"""
+    try:
+        movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
+        return pd.DataFrame(movies_dict)
+    except FileNotFoundError:
+        st.error("movie_dict.pkl not found! Please ensure the file is in your repository.")
+        return None
+
+@st.cache_data
+def load_similarity_matrix():
+    """Load similarity matrix from external source or local file"""
+    similarity_file = os.path.join(CACHE_DIR, 'similarity.pkl')
+    
+    # If file doesn't exist locally, download from external source
+    if not os.path.exists(similarity_file):
+        st.info("Downloading similarity matrix... This may take a moment.")
+        
+        # Replace this URL with your actual file URL
+        # Options: Google Drive, GitHub Releases, Dropbox, etc.
+        file_url = "https://drive.google.com/file/d/1HRQSgoHEw_LS_a_LvF_4y7cogbErZ2CJ/view?usp=sharing"
+        
+        try:
+            # Download with progress bar
+            with st.spinner('Downloading similarity matrix...'):
+                urlretrieve(file_url, similarity_file)
+            st.success("Download complete!")
+        except Exception as e:
+            st.error(f"Failed to download similarity matrix: {e}")
+            return None
+    
+    # Load the similarity matrix
+    try:
+        with open(similarity_file, 'rb') as f:
+            return pickle.load(f)
+    except Exception as e:
+        st.error(f"Failed to load similarity matrix: {e}")
+        return None
+
+# Load data
+movies = load_movie_data()
+if movies is None:
+    st.stop()
+
+similarity = load_similarity_matrix()
+if similarity is None:
+    st.stop()
 
 # Create cleaned title column for safe matching
 movies['title_clean'] = movies['title'].str.strip().str.lower()
